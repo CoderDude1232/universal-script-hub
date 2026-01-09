@@ -75,8 +75,8 @@ end
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
 
 local Window = Fluent:CreateWindow({
-	Title = "Admin Panel",
-	SubTitle = "Client",
+	Title = "All Games",
+	SubTitle = "Script Hub",
 	TabWidth = 160,
 	Size = UDim2.fromOffset(720, 600),
 	Acrylic = true,
@@ -176,7 +176,7 @@ local state = {
 --========================
 -- Player
 local PlayerSec    = Tabs.Player:AddSection("Stats")
-local AltSpeedSec  = Tabs.Player:AddSection("Alt Speed (No WalkSpeed)")
+local AltSpeedSec  = Tabs.Player:AddSection("Velocity Speed")
 local WeaponSec    = Tabs.Player:AddSection("Weapons")
 local HealthSec    = Tabs.Player:AddSection("Health")
 local CameraSec    = Tabs.Player:AddSection("Camera")
@@ -466,21 +466,21 @@ PlayerSec:AddSlider("JumpPower", {
 })
 
 AltSpeedSec:AddToggle("AltSpeedEnabled", {
-	Title = "Alt Speed Boost (No WalkSpeed)",
-	Description = "Adds extra horizontal velocity while moving (helps if game resets WalkSpeed).",
+	Title = "Velocity Speed",
+	Description = "Adds extra horizontal velocity while moving.",
 	Default = false,
 	Callback = function(on) state.altSpeedEnabled = on end
 })
 
 AltSpeedSec:AddSlider("AltSpeedBoost", {
 	Title = "Boost Amount",
-	Default = 0, Min = 0, Max = 150, Rounding = 0,
+	Default = 6, Min = 0, Max = 150, Rounding = 0,
 	Callback = function(v) state.altSpeedBoost = v end
 })
 
 AltSpeedSec:AddSlider("AltSpeedMaxVel", {
-	Title = "Max Horizontal Velocity (cap)",
-	Default = 120, Min = 20, Max = 300, Rounding = 0,
+	Title = "Max Horizontal Velocity",
+	Default = 70, Min = 20, Max = 300, Rounding = 0,
 	Callback = function(v) state.altSpeedMaxVel = v end
 })
 

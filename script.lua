@@ -223,13 +223,13 @@ end
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
 
 local Window = Rayfield:CreateWindow({
-	Name = "All Games - Script Hub",
-	LoadingTitle = "All Games",
-	LoadingSubtitle = "Rayfield UI",
+	Name = "Axiom",
+	LoadingTitle = "Axiom",
+	LoadingSubtitle = "Universal Script",
 	ConfigurationSaving = {
 		Enabled = true,
-		FolderName = "AllGamesHub",
-		FileName = "Config"
+		FolderName = "AxiomUniversal",
+		FileName = "Axiom"
 	},
 	KeySystem = false
 })

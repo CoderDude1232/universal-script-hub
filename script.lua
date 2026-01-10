@@ -1,8 +1,4 @@
 --========================
--- Rayfield Admin Panel (Fluent-style sections + safer slider caps)
---========================
-
---========================
 -- Imports
 --========================
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -221,7 +217,7 @@ end
 --========================
 
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
-local VERSION = "v1.0"
+local VERSION = "v1.1"
 
 local Window = Rayfield:CreateWindow({
 	Name = "Axiom " .. VERSION,
@@ -2725,7 +2721,7 @@ Tabs.Settings:CreateToggle({
 	Callback = function(on) state.disableNotifications = on and true or false end
 })
 
-Tabs.Settings:CreateSlider({
+--[[Tabs.Settings:CreateSlider({
 	Name = "UI Scale",
 	Range = {0.7, 1.5},
 	Increment = 0.05,
@@ -2736,11 +2732,11 @@ Tabs.Settings:CreateSlider({
 		local ok = setRayfieldScale(v)
 		if not ok then notify("UI", "Unable to locate Rayfield UI to scale.", 3, true) end
 	end
-})
+})]]
 
 Tabs.Settings:CreateDropdown({
 	Name = "UI Theme",
-	Options = {"Default","Dark","Darker","Light"},
+	Options = {"Default","AmberGlow","Amethyst","Bloom","DarkBlue","Green", "Light","Ocean","Serenity"},
 	CurrentOption = {state.uiTheme},
 	MultipleOptions = false,
 	Flag = "UITheme",
@@ -2750,11 +2746,10 @@ Tabs.Settings:CreateDropdown({
 		-- Best-effort: some Rayfield forks expose SetTheme / ChangeTheme
 		local applied = false
 		pcall(function()
-			if Rayfield.SetTheme then Rayfield:SetTheme(state.uiTheme); applied = true end
-			if Rayfield.ChangeTheme then Rayfield:ChangeTheme(state.uiTheme); applied = true end
+			if Window.ModifyTheme then Windows.ModifyTheme(state.uiTheme); applied = true end
 		end)
 		if not applied then
-			notify("UI Theme", "This Rayfield build does not support theme switching.", 4, true)
+			notify("UI Theme", "Could not set theme.", 4, true)
 		end
 	end
 })
@@ -2911,3 +2906,5 @@ task.defer(function()
 	refreshTargetDropdown(true)
 	refreshSavedDropdown()
 end)
+
+Rayfield:LoadConfiguration()

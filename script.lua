@@ -228,7 +228,9 @@ local Window = Rayfield:CreateWindow({
 		FolderName = "AxiomUniversal",
 		FileName = "Axiom"
 	},
-	KeySystem = false
+	KeySystem = false,
+	DisableRayfieldPrompts = true,
+   DisableBuildWarnings = true
 })
 
 track(UIS.InputBegan:Connect(function(input, gp)

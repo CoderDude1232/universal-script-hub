@@ -2233,6 +2233,64 @@ local function refreshAllHitboxes()
 	end
 end
 
+--========================
+-- Hitbox Respawn Fix (Drop-in)
+--========================
+
+local function safeApplyOrRestore(plr)
+	if state.hitboxEnabled then
+		applyHitbox(plr)
+	else
+		restoreHitbox(plr)
+	end
+end
+
+local function hookCharacter(plr)
+	-- Apply once character exists (and again when HRP loads)
+	local function onChar(char)
+		-- wait a moment so HumanoidRootPart exists
+		task.defer(function()
+			if state.terminated then return end
+			if not plr or not plr.Parent then return end
+
+			-- If HRP isn't ready yet, wait briefly
+			local ok = pcall(function()
+				char:WaitForChild("HumanoidRootPart", 3)
+			end)
+			if not ok then return end
+
+			safeApplyOrRestore(plr)
+		end)
+	end
+
+	-- Hook current + future respawns
+	if plr.Character then
+		onChar(plr.Character)
+	end
+
+	track(plr.CharacterAdded:Connect(function(char)
+		onChar(char)
+	end))
+end
+
+-- Hook all existing players
+for _, plr in ipairs(Players:GetPlayers()) do
+	if plr ~= LocalPlayer then
+		hookCharacter(plr)
+	end
+end
+
+-- Hook new players
+track(Players.PlayerAdded:Connect(function(plr)
+	if plr == LocalPlayer then return end
+	hookCharacter(plr)
+end))
+
+-- Cleanup when players leave (prevents memory issues + restores table)
+track(Players.PlayerRemoving:Connect(function(plr)
+	restoreHitbox(plr)
+end))
+
 Tabs.ESP:CreateToggle({
 	Name = "Hitbox Toggle",
 	CurrentValue = false,

@@ -221,9 +221,10 @@ end
 --========================
 
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
+local VERSION = "v1.0"
 
 local Window = Rayfield:CreateWindow({
-	Name = "Axiom",
+	Name = "Axiom" .. VERSION,
 	LoadingTitle = "Axiom",
 	LoadingSubtitle = "Universal Script",
 	ConfigurationSaving = {

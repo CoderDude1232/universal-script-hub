@@ -212,6 +212,54 @@ local function getMouseHitCFrame(maxDist)
 	return CFrame.new(origin + dir)
 end
 
+local DEFAULTS = {
+	WalkSpeed = 16,
+	JumpPower = 50,
+	FOV = 70,
+	HipHeight = 0,
+}
+
+local function applyPlayerDefaults()
+	pcall(function()
+		local hum = getHumanoid()
+		hum.WalkSpeed = DEFAULTS.WalkSpeed
+		hum.JumpPower = DEFAULTS.JumpPower
+		hum.HipHeight = DEFAULTS.HipHeight
+		Camera.FieldOfView = DEFAULTS.FOV
+	end)
+end
+
+track(LocalPlayer.CharacterAdded:Connect(function(char)
+	task.defer(function()
+		if state.terminated then return end
+		-- Apply hipheight override if enabled
+		if state.hipHeightEnabled then
+			pcall(function()
+				local hum = getHumanoid()
+				hum.HipHeight = state.hipHeight
+			end)
+		end
+
+		-- Auto reset on death: bind Died each spawn
+		if state.autoResetOnDeath then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				track(hum.Died:Connect(function()
+					-- Wait for respawn, then reset
+					task.delay(0.6, function()
+						if state.terminated then return end
+						applyPlayerDefaults()
+						-- re-apply hipheight override after reset
+						if state.hipHeightEnabled then
+							pcall(function() getHumanoid().HipHeight = state.hipHeight end)
+						end
+					end)
+				end))
+			end
+		end
+	end)
+end))
+
 --========================
 -- Window
 --========================
@@ -252,12 +300,32 @@ local Tabs = {
 	ESP      = Window:CreateTab("ESP",      10723346959),
 	Utility  = Window:CreateTab("Utility",  10747383470),
 	Settings = Window:CreateTab("Settings", 10734950309),
+	Credits  = Window:CreateTab("Credits",       "info"),
 }
 
 --========================
 -- State
 --========================
 state = {
+	-- Player
+	state.hipHeight = state.hipHeight or 0
+	state.hipHeightEnabled = (state.hipHeightEnabled ~= false) and state.hipHeightEnabled or false
+	state.autoResetOnDeath = state.autoResetOnDeath or false
+
+	-- Movement / Teleport
+	state.spiderWalk = state.spiderWalk or false
+	state.tpToGroundOffset = state.tpToGroundOffset or 3
+	state.unstuckEnabled = state.unstuckEnabled or false
+
+	-- Visual
+	state.noCamShake = state.noCamShake or false
+	state.guiHidden = state.guiHidden or false
+
+	-- Utility
+	state.rejoinOnKick = state.rejoinOnKick or false
+	state.showPerfPanel = (state.showPerfPanel ~= false) and true or state.showPerfPanel
+	state.antiIdlePro = state.antiIdlePro or false
+
 	-- movement
 	noclip = state.noclip or false,
 	infiniteJump = state.infiniteJump or false,
@@ -621,6 +689,48 @@ Tabs.Player:CreateSlider({
 	Callback = function(v) state.altSpeedMaxVel = v end
 })
 
+Header(Tabs.Player, "Hip Height")
+
+Tabs.Player:CreateToggle({
+	Name = "HipHeight Override",
+	CurrentValue = state.hipHeightEnabled,
+	Flag = "HipHeightEnabled",
+	Callback = function(on)
+		state.hipHeightEnabled = on and true or false
+		pcall(function()
+			if state.hipHeightEnabled then
+				getHumanoid().HipHeight = state.hipHeight
+			end
+		end)
+	end
+})
+
+Tabs.Player:CreateSlider({
+	Name = "HipHeight",
+	Range = {-2, 10},
+	Increment = 0.1,
+	Suffix = "",
+	CurrentValue = state.hipHeight,
+	Flag = "HipHeight",
+	Callback = function(v)
+		state.hipHeight = v
+		if state.hipHeightEnabled then
+			pcall(function() getHumanoid().HipHeight = v end)
+		end
+	end
+})
+
+Header(Tabs.Player, "Auto Reset")
+
+Tabs.Player:CreateToggle({
+	Name = "Auto Reset on Death",
+	CurrentValue = state.autoResetOnDeath,
+	Flag = "AutoResetOnDeath",
+	Callback = function(on)
+		state.autoResetOnDeath = on and true or false
+	end
+})
+
 Header(Tabs.Player, "Weapons")
 weaponDropdown = Tabs.Player:CreateDropdown({
 	Name = "Tool",
@@ -725,6 +835,69 @@ end))
 --========================
 -- MOVEMENT TAB
 --========================
+local spiderConn
+local spiderUp = Vector3.new(0, 1, 0)
+
+local function stopSpider()
+	if spiderConn then spiderConn:Disconnect(); spiderConn = nil end
+	pcall(function()
+		local hum = getHumanoid()
+		hum.PlatformStand = false
+	end)
+end
+
+local function startSpider()
+	stopSpider()
+	spiderConn = RunService.RenderStepped:Connect(function(dt)
+		if state.terminated then return end
+		if not state.spiderWalk then return end
+
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hrp or not hum or hum.Health <= 0 then return end
+
+		-- Raycast forward to find a wall
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+		params.FilterDescendantsInstances = { char }
+
+		local origin = hrp.Position
+		local forward = hrp.CFrame.LookVector * 4
+		local hit = Workspace:Raycast(origin, forward, params)
+
+		if hit and hit.Normal then
+			-- Align "up" to wall normal (simple spider)
+			local n = hit.Normal.Unit
+			-- Build a basis using camera right to keep control stable
+			local camRight = Camera.CFrame.RightVector
+			local right = (camRight - camRight:Dot(n) * n)
+			if right.Magnitude < 0.1 then
+				right = Vector3.new(1,0,0)
+			else
+				right = right.Unit
+			end
+			local back = right:Cross(n).Unit
+
+			-- stick to wall
+			local targetPos = hit.Position + n * 2
+			hrp.CFrame = CFrame.fromMatrix(targetPos, right, n, -back)
+			hum.PlatformStand = false
+		end
+	end)
+	table.insert(connections, spiderConn)
+end
+
+-- Keep spider loop managed
+track(RunService.Heartbeat:Connect(function()
+	if state.terminated then return end
+	if state.spiderWalk then
+		if not spiderConn then startSpider() end
+	else
+		if spiderConn then stopSpider() end
+	end
+end))
+
 Header(Tabs.Movement, "Movement")
 Tabs.Movement:CreateToggle({ Name = "Noclip", CurrentValue = false, Flag = "Noclip", Callback = function(on) state.noclip = on end })
 Tabs.Movement:CreateToggle({ Name = "Infinite Jump", CurrentValue = false, Flag = "InfiniteJump", Callback = function(on) state.infiniteJump = on end })
@@ -755,6 +928,17 @@ Tabs.Movement:CreateToggle({
 	CurrentValue = state.bunnyHop,
 	Flag = "BunnyHop",
 	Callback = function(on) state.bunnyHop = on and true or false end
+})
+
+Header(Tabs.Movement, "Spider")
+
+Tabs.Movement:CreateToggle({
+	Name = "Spider Walk (Wall Walk)",
+	CurrentValue = state.spiderWalk,
+	Flag = "SpiderWalk",
+	Callback = function(on)
+		state.spiderWalk = on and true or false
+	end
 })
 
 track(RunService.Heartbeat:Connect(function()
@@ -1126,6 +1310,79 @@ Tabs.Teleport:CreateButton({
 	end
 })
 
+Header(Tabs.Teleport, "Safety Teleports")
+
+Tabs.Teleport:CreateSlider({
+	Name = "Ground Offset",
+	Range = {1, 10},
+	Increment = 0.5,
+	Suffix = "m",
+	CurrentValue = state.tpToGroundOffset,
+	Flag = "GroundOffset",
+	Callback = function(v) state.tpToGroundOffset = v end
+})
+
+Tabs.Teleport:CreateButton({
+	Name = "Teleport to Ground",
+	Callback = function()
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+		params.FilterDescendantsInstances = { char }
+
+		local res = Workspace:Raycast(hrp.Position, Vector3.new(0, -5000, 0), params)
+		if res then
+			hrp.CFrame = CFrame.new(res.Position + Vector3.new(0, state.tpToGroundOffset, 0))
+		end
+	end
+})
+
+Tabs.Teleport:CreateButton({
+	Name = "Unstuck Teleport",
+	Callback = function()
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+
+		local params = OverlapParams.new()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+		params.FilterDescendantsInstances = { char }
+
+		local function isFree(pos)
+			local parts = Workspace:GetPartBoundsInBox(CFrame.new(pos), Vector3.new(4, 6, 4), params)
+			return #parts == 0
+		end
+
+		local base = hrp.Position
+		local offsets = {
+			Vector3.new(0, 3, 0),
+			Vector3.new(0, 6, 0),
+			Vector3.new(2, 0, 0),
+			Vector3.new(-2, 0, 0),
+			Vector3.new(0, 0, 2),
+			Vector3.new(0, 0, -2),
+			Vector3.new(2, 0, 2),
+			Vector3.new(-2, 0, -2),
+			Vector3.new(4, 0, 0),
+			Vector3.new(-4, 0, 0),
+			Vector3.new(0, 0, 4),
+			Vector3.new(0, 0, -4),
+			Vector3.new(0, 10, 0),
+		}
+
+		for _, off in ipairs(offsets) do
+			local p = base + off
+			if isFree(p) then
+				hrp.CFrame = CFrame.new(p)
+				return
+			end
+		end
+	end
+})
+
 Header(Tabs.Teleport, "Circle Target")
 
 Tabs.Teleport:CreateToggle({
@@ -1488,10 +1745,191 @@ local function setNoParticles(on)
 	end
 end
 
+-- GUI toggle (safe exclude Rayfield)
+local savedGuiState = {}
+
+local function setGuiHidden(hide)
+	local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if not pg then return end
+
+	for _, gui in ipairs(pg:GetChildren()) do
+		if gui:IsA("ScreenGui") then
+			local n = gui.Name:lower()
+			if n:find("rayfield") then
+				continue
+			end
+			if hide then
+				if savedGuiState[gui] == nil then
+					savedGuiState[gui] = gui.Enabled
+				end
+				gui.Enabled = false
+			else
+				if savedGuiState[gui] ~= nil then
+					gui.Enabled = savedGuiState[gui]
+				end
+			end
+		end
+	end
+
+	if not hide then
+		table.clear(savedGuiState)
+	end
+end
+
+-- No camera shake: low-pass filter camera position (reduces jitter)
+local camFilterConn
+local camSmoothPos, camSmoothLook
+
+local function startNoShake()
+	if camFilterConn then return end
+	camSmoothPos = nil
+	camSmoothLook = nil
+
+	camFilterConn = RunService:BindToRenderStep("Axiom_NoShake", Enum.RenderPriority.Camera.Value + 1, function(dt)
+		if not state.noCamShake then return end
+		local cam = Workspace.CurrentCamera
+		if not cam then return end
+
+		local cf = cam.CFrame
+		local pos = cf.Position
+		local look = cf.LookVector
+
+		if not camSmoothPos then
+			camSmoothPos = pos
+			camSmoothLook = look
+		end
+
+		-- filter high frequency shake
+		local a = 1 - math.exp(-12 * dt)
+		camSmoothPos = camSmoothPos:Lerp(pos, a)
+		camSmoothLook = (camSmoothLook:Lerp(look, a)).Unit
+
+		cam.CFrame = CFrame.new(camSmoothPos, camSmoothPos + camSmoothLook)
+	end)
+end
+
+local function stopNoShake()
+	pcall(function()
+		RunService:UnbindFromRenderStep("Axiom_NoShake")
+	end)
+	camFilterConn = nil
+end
+
+-- Save/restore visuals
+local savedLighting = nil
+local savedEffects = nil
+
+local function captureVisuals()
+	if savedLighting then return end
+	savedLighting = {
+		Brightness = Lighting.Brightness,
+		Ambient = Lighting.Ambient,
+		OutdoorAmbient = Lighting.OutdoorAmbient,
+		ClockTime = Lighting.ClockTime,
+		FogEnd = Lighting.FogEnd,
+		FogStart = Lighting.FogStart,
+		FogColor = Lighting.FogColor,
+	}
+	savedEffects = {}
+	for _, inst in ipairs(Lighting:GetChildren()) do
+		if inst:IsA("BloomEffect") or inst:IsA("BlurEffect") or inst:IsA("ColorCorrectionEffect")
+			or inst:IsA("SunRaysEffect") or inst:IsA("DepthOfFieldEffect") then
+			savedEffects[inst] = inst.Enabled
+		end
+	end
+end
+
+local function restoreVisuals()
+	-- stop special camera stuff
+	state.noCamShake = false
+	stopNoShake()
+
+	-- restore lighting
+	if savedLighting then
+		for k,v in pairs(savedLighting) do
+			pcall(function() Lighting[k] = v end)
+		end
+		savedLighting = nil
+	end
+	if savedEffects then
+		for inst, was in pairs(savedEffects) do
+			if inst and inst.Parent then inst.Enabled = was end
+		end
+		savedEffects = nil
+	end
+
+	-- restore particles/weather toggles you already have
+	pcall(function()
+		-- if you have your own setters, call them here:
+		-- setRemoveEffects(false)
+		-- setNightVision(false)
+		-- setNoWeather(false)
+		-- setNoParticles(false)
+	end)
+
+	-- restore GUI
+	state.guiHidden = false
+	setGuiHidden(false)
+
+	notify("Visuals", "Restored.", 2)
+end
+
+_G.__AXIOM_VISUALS_RESTORE = restoreVisuals
+
+-- keep systems updated
+track(RunService.Heartbeat:Connect(function()
+	if state.terminated then return end
+
+	-- capture baseline once
+	captureVisuals()
+
+	-- gui hide/show
+	if state.guiHidden then
+		setGuiHidden(true)
+	else
+		-- do not constantly restore; only when toggled off
+	end
+
+	-- no shake
+	if state.noCamShake then
+		startNoShake()
+	else
+		stopNoShake()
+	end
+end))
+
 Tabs.Visual:CreateToggle({ Name = "Remove Lighting Effects", CurrentValue = state.removeEffects, Flag="RemoveEffects", Callback = function(on) state.removeEffects = on; setRemoveEffects(on) end })
 Tabs.Visual:CreateToggle({ Name = "Night Vision", CurrentValue = state.nightVision, Flag="NightVision", Callback = function(on) state.nightVision = on; setNightVision(on) end })
 Tabs.Visual:CreateToggle({ Name = "No Weather (Fog/Atmosphere)", CurrentValue = state.noWeather, Flag="NoWeather", Callback = function(on) state.noWeather = on; setNoWeather(on) end })
 Tabs.Visual:CreateToggle({ Name = "No Particles", CurrentValue = state.noParticles, Flag="NoParticles", Callback = function(on) state.noParticles = on; setNoParticles(on) end })
+
+Header(Tabs.Visual, "Camera & UI")
+
+Tabs.Visual:CreateToggle({
+	Name = "No Camera Shake (Filter)",
+	CurrentValue = state.noCamShake,
+	Flag = "NoCamShake",
+	Callback = function(on) state.noCamShake = on and true or false end
+})
+
+Tabs.Visual:CreateToggle({
+	Name = "Hide Game UI (Safe)",
+	CurrentValue = state.guiHidden,
+	Flag = "HideGUI",
+	Callback = function(on)
+		state.guiHidden = on and true or false
+		-- handled by logic below
+	end
+})
+
+Tabs.Visual:CreateButton({
+	Name = "Restore Visuals",
+	Callback = function()
+		if _G.__AXIOM_VISUALS_RESTORE then
+			_G.__AXIOM_VISUALS_RESTORE()
+		end
+	end
+})
 
 Header(Tabs.Visual, "Freecam")
 
@@ -2333,9 +2771,6 @@ Tabs.ESP:CreateSlider({
 -- UTILITY TAB
 --========================
 
---========================
--- Utility: Server (Server Hop + Buttons)
---========================
 Header(Tabs.Utility, "Server")
 
 local ServerHop = (function()
@@ -2529,6 +2964,99 @@ local ServerHop = (function()
 	}
 end)()
 
+-- FPS / Ping / Memory
+local Stats = game:GetService("Stats")
+local lastFrame = os.clock()
+local fps = 0
+
+local function getPingMs()
+	-- Works on many clients; falls back gracefully
+	local ok, ping = pcall(function()
+		local net = Stats:FindFirstChild("Network")
+		local ssv = net and net:FindFirstChild("ServerStatsItem")
+		local dpi = ssv and ssv:FindFirstChild("Data Ping")
+		local v = dpi and dpi:GetValue()
+		return tonumber(v)
+	end)
+	if ok and ping then return math.floor(ping + 0.5) end
+	return nil
+end
+
+local function getMemMb()
+	local ok, mem = pcall(function()
+		return Stats:GetTotalMemoryUsageMb()
+	end)
+	if ok and mem then return math.floor(mem + 0.5) end
+	return nil
+end
+
+track(RunService.RenderStepped:Connect(function()
+	local now = os.clock()
+	local dt = now - lastFrame
+	lastFrame = now
+	if dt > 0 then fps = fps * 0.9 + (1/dt) * 0.1 end
+end))
+
+track(RunService.Heartbeat:Connect(function()
+	if state.terminated then return end
+	if not state.showPerfPanel then
+		setRFLabel(perfPing, "Ping: -")
+		setRFLabel(perfFps, "FPS: -")
+		setRFLabel(perfMem, "Memory: -")
+		return
+	end
+
+	local p = getPingMs()
+	local m = getMemMb()
+
+	setRFLabel(perfPing, "Ping: " .. (p and (tostring(p) .. " ms") or "-"))
+	setRFLabel(perfFps, ("FPS: %.0f"):format(fps))
+	setRFLabel(perfMem, "Memory: " .. (m and (tostring(m) .. " MB") or "-"))
+end))
+
+-- Rejoin on kick (best-effort via GuiService error message)
+local GuiService = game:GetService("GuiService")
+track(GuiService.ErrorMessageChanged:Connect(function()
+	if state.terminated then return end
+	if not state.rejoinOnKick then return end
+
+	local msg = GuiService:GetErrorMessage() or ""
+	msg = msg:lower()
+
+	if msg:find("kicked") or msg:find("disconnected") or msg:find("connection") then
+		pcall(function()
+			TeleportService:Teleport(game.PlaceId, LocalPlayer)
+		end)
+	end
+end))
+
+-- Anti idle pro: small camera nudge + virtual user fallback
+local VirtualUser = game:GetService("VirtualUser")
+track(LocalPlayer.Idled:Connect(function()
+	if state.terminated then return end
+	if not state.antiIdlePro then return end
+
+	pcall(function()
+		VirtualUser:CaptureController()
+		VirtualUser:ClickButton2(Vector2.new())
+	end)
+end))
+
+track(RunService.Heartbeat:Connect(function(dt)
+	if state.terminated then return end
+	if not state.antiIdlePro then return end
+
+	-- subtle camera nudge every ~20s
+	state._antiIdleAcc = (state._antiIdleAcc or 0) + dt
+	if state._antiIdleAcc < 20 then return end
+	state._antiIdleAcc = 0
+
+	pcall(function()
+		local cf = Camera.CFrame
+		Camera.CFrame = cf * CFrame.Angles(0, math.rad(0.25), 0)
+	end)
+end))
+
 -- Buttons
 Tabs.Utility:CreateButton({
 	Name = "Rejoin Server",
@@ -2556,6 +3084,37 @@ Tabs.Utility:CreateButton({
 	Callback = function()
 		ServerHop:Hop(game.PlaceId, "least")
 	end
+})
+
+Header(Tabs.Utility, "Diagnostics")
+
+Tabs.Utility:CreateToggle({
+	Name = "Show Performance Panel",
+	CurrentValue = state.showPerfPanel,
+	Flag = "ShowPerfPanel",
+	Callback = function(on) state.showPerfPanel = on and true or false end
+})
+
+local perfPing = Tabs.Utility:CreateLabel("Ping: -")
+local perfFps  = Tabs.Utility:CreateLabel("FPS: -")
+local perfMem  = Tabs.Utility:CreateLabel("Memory: -")
+
+Header(Tabs.Utility, "Recovery")
+
+Tabs.Utility:CreateToggle({
+	Name = "Rejoin on Kick (Best Effort)",
+	CurrentValue = state.rejoinOnKick,
+	Flag = "RejoinOnKick",
+	Callback = function(on) state.rejoinOnKick = on and true or false end
+})
+
+Header(Tabs.Utility, "Anti Idle")
+
+Tabs.Utility:CreateToggle({
+	Name = "Anti Idle (Pro)",
+	CurrentValue = state.antiIdlePro,
+	Flag = "AntiIdlePro",
+	Callback = function(on) state.antiIdlePro = on and true or false end
 })
 
 Header(Tabs.Utility, "AFK")
@@ -2953,6 +3512,15 @@ Tabs.Settings:CreateButton({
 		end
 	end
 })
+
+--========================
+-- SETTINGS TAB
+--========================
+
+Header(Tabs.Credits, "Axiom")
+Tabs.Credits:CreateLabel("Script: Axiom Universal")
+Tabs.Credits:CreateLabel("Library: Rayfield")
+Tabs.Credits:CreateLabel("Creator: @etho_gg")
 
 --========================
 -- Initial refresh

@@ -463,26 +463,14 @@ Tabs.Credits:CreateParagraph({
 Header(Tabs.Credits, "Changelog")
 
 Tabs.Credits:CreateParagraph({
-	Title = "v1.3",
+	Title = "v1.2",
 	Content =
-	"- Unified Player, Server, and Performance info into a single Info panel\n" ..
-	"- Removed duplicate and legacy features (old anti-idle, duplicate rejoin, split info panels)\n" ..
-	"- Standardised feature naming across all tabs for consistency\n" ..
-	"- Added Bunny Hop, Spider Walk, Hip Height, and Auto Reset on Death\n" ..
-	"- Added advanced teleport utilities (Cursor TP, Ground TP, Spawn TP, Unstuck)\n" ..
-	"- Improved Follow system with Predictive and Circle modes\n" ..
-	"- Expanded Visual controls (No Camera Shake, Night Vision, Remove Effects, No Weather, No Particles)\n" ..
-	"- Refined ESP system with unified Mode selector and proper cleanup\n" ..
-	"- Fixed ESP drawing persistence and ghost artifacts\n" ..
-	"- Improved hitbox handling across respawns\n" ..
-	"- Added FPS, Ping, Memory Usage, and Session Time tracking\n" ..
-	"- Added Anti-Idle (new system only) and Auto Rejoin safety features\n" ..
-	"- Added UI scaling, notification mute, and reset controls\n" ..
-	"- General stability, performance, and reliability improvements"
+	"- Moved all Player + Server + Performance info into Utility\n" ..
+	"- Removed duplicate info panels and singular anti idle"
 })
 
 Tabs.Credits:CreateParagraph({
-	Title = "v1.2",
+	Title = "v1.1",
 	Content =
 	"- HipHeight\n" ..
 	"- Auto reset on death\n" ..
@@ -502,7 +490,7 @@ Tabs.Credits:CreateParagraph({
 	Title = "v1.0",
 	Content =
 	"- Initial Axiom release\n" ..
-	"- Core features\n"
+	"- Core features"
 })
 
 --========================
@@ -3094,6 +3082,8 @@ end))
 
 -- Anti idle pro: small camera nudge + virtual user fallback
 local VirtualUser = game:GetService("VirtualUser")
+
+-- One handler only
 track(LocalPlayer.Idled:Connect(function()
 	if state.terminated then return end
 	if not state.antiIdlePro then return end
@@ -3104,18 +3094,17 @@ track(LocalPlayer.Idled:Connect(function()
 	end)
 end))
 
+-- Optional subtle nudge (kept minimal)
 track(RunService.Heartbeat:Connect(function(dt)
 	if state.terminated then return end
 	if not state.antiIdlePro then return end
 
-	-- subtle camera nudge every ~20s
 	state._antiIdleAcc = (state._antiIdleAcc or 0) + dt
 	if state._antiIdleAcc < 20 then return end
 	state._antiIdleAcc = 0
 
 	pcall(function()
-		local cf = Camera.CFrame
-		Camera.CFrame = cf * CFrame.Angles(0, math.rad(0.25), 0)
+		Camera.CFrame = Camera.CFrame * CFrame.Angles(0, math.rad(0.25), 0)
 	end)
 end))
 
@@ -3148,6 +3137,176 @@ Tabs.Utility:CreateButton({
 	end
 })
 
+Header(Tabs.Utility, "Info Panel")
+
+-- UI
+local infoPanel = Tabs.Utility:CreateParagraph({
+	Title = "Info",
+	Content = "Loading..."
+})
+
+local infoPlayerDropdown = Tabs.Utility:CreateDropdown({
+	Name = "Player",
+	Options = {"LocalPlayer"},
+	CurrentOption = {state.infoSelectedPlayer ~= "" and state.infoSelectedPlayer or "LocalPlayer"},
+	MultipleOptions = false,
+	Flag = "InfoSelectedPlayer_Utility",
+	Callback = function(opt)
+		if type(opt) == "table" then opt = opt[1] end
+		state.infoSelectedPlayer = tostring(opt or "LocalPlayer")
+	end
+})
+
+Tabs.Utility:CreateToggle({
+	Name = "Enabled",
+	CurrentValue = true,
+	Flag = "InfoEnabled_Utility",
+	Callback = function(on)
+		state.infoEnabled = on and true or false
+	end
+})
+
+Tabs.Utility:CreateSlider({
+	Name = "Refresh Rate",
+	Range = {0.2, 2.0},
+	Increment = 0.1,
+	Suffix = "s",
+	CurrentValue = state.infoRefreshRate or 0.5,
+	Flag = "InfoRefreshRate_Utility",
+	Callback = function(v)
+		state.infoRefreshRate = v
+	end
+})
+
+-- Logic
+local Stats = game:GetService("Stats")
+local lastFrame = os.clock()
+local fps = 0
+
+track(RunService.RenderStepped:Connect(function()
+	local now = os.clock()
+	local dt = now - lastFrame
+	lastFrame = now
+	if dt > 0 then fps = fps * 0.9 + (1/dt) * 0.1 end
+end))
+
+local function getPingMs()
+	local ok, ping = pcall(function()
+		local net = Stats:FindFirstChild("Network")
+		local ssv = net and net:FindFirstChild("ServerStatsItem")
+		local dpi = ssv and ssv:FindFirstChild("Data Ping")
+		return dpi and tonumber(dpi:GetValue())
+	end)
+	if ok and ping then return math.floor(ping + 0.5) end
+	return nil
+end
+
+local function getMemMb()
+	local ok, mem = pcall(function() return Stats:GetTotalMemoryUsageMb() end)
+	if ok and mem then return math.floor(mem + 0.5) end
+	return nil
+end
+
+local function rebuildInfoPlayerOptions()
+	local t = {"LocalPlayer"}
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= LocalPlayer then table.insert(t, p.Name) end
+	end
+	table.sort(t, function(a,b)
+		if a == "LocalPlayer" then return true end
+		if b == "LocalPlayer" then return false end
+		return a < b
+	end)
+
+	dropdownSetValues(infoPlayerDropdown, t)
+
+	-- keep selection if possible
+	local wanted = state.infoSelectedPlayer ~= "" and state.infoSelectedPlayer or "LocalPlayer"
+	if not table.find(t, wanted) then
+		state.infoSelectedPlayer = "LocalPlayer"
+		dropdownSetCurrent(infoPlayerDropdown, "LocalPlayer")
+	end
+end
+
+rebuildInfoPlayerOptions()
+track(Players.PlayerAdded:Connect(function() task.defer(rebuildInfoPlayerOptions) end))
+track(Players.PlayerRemoving:Connect(function() task.defer(rebuildInfoPlayerOptions) end))
+
+local function getSelectedPlayer()
+	if state.infoSelectedPlayer == "LocalPlayer" or state.infoSelectedPlayer == "" then
+		return LocalPlayer
+	end
+	return Players:FindFirstChild(state.infoSelectedPlayer)
+end
+
+state.infoEnabled = (state.infoEnabled ~= false)
+state.infoRefreshRate = state.infoRefreshRate or 0.5
+
+track(RunService.Heartbeat:Connect(function(dt)
+	if state.terminated then return end
+	if not state.infoEnabled then return end
+
+	state._infoPanelAcc = (state._infoPanelAcc or 0) + dt
+	if state._infoPanelAcc < (state.infoRefreshRate or 0.5) then return end
+	state._infoPanelAcc = 0
+
+	local ping = getPingMs()
+	local mem = getMemMb()
+
+	local serverLine = ("Server: %d/%d players\nPlaceId: %d\nJobId: %s")
+		:format(#Players:GetPlayers(), Players.MaxPlayers, game.PlaceId, tostring(game.JobId):sub(1,12) .. "…")
+
+	local perfLine = ("Performance: FPS %.0f | Ping %s | Mem %s")
+		:format(fps, ping and (tostring(ping).."ms") or "-", mem and (tostring(mem).."MB") or "-")
+
+	local target = getSelectedPlayer()
+	if not target then
+		infoPanel:Set({
+			Title = "Info",
+			Content = serverLine .. "\n\n" .. perfLine .. "\n\nPlayer: (not found)"
+		})
+		return
+	end
+
+	local char = target.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	local lroot = getRootOf(LocalPlayer)
+
+	local team = (target.Team and target.Team.Name) or "None"
+	local hp = (hum and hum.MaxHealth) and ("%d/%d"):format(math.floor(hum.Health+0.5), math.floor(hum.MaxHealth+0.5)) or "-"
+	local dist = (root and lroot) and ("%.0fm"):format((root.Position - lroot.Position).Magnitude) or "-"
+
+	local playerLine = ("Player: %s%s\nTeam: %s\nHealth: %s\nDistance: %s")
+		:format(target.Name, (target==LocalPlayer) and " (Local)" or "", team, hp, dist)
+
+	local extra = ""
+	if target == LocalPlayer and root then
+		local v = root.AssemblyLinearVelocity
+		extra = ("\n\nLocal:\nPos: %.0f, %.0f, %.0f\nVel: %.0f studs/s")
+			:format(root.Position.X, root.Position.Y, root.Position.Z, v.Magnitude)
+	end
+
+	infoPanel:Set({
+		Title = "Info",
+		Content = serverLine .. "\n\n" .. perfLine .. "\n\n" .. playerLine .. extra
+	})
+end))
+
+Header(Tabs.Utility, "Anti-Idle")
+
+-- One name, one toggle, one implementation
+Tabs.Utility:CreateToggle({
+	Name = "Anti-Idle",
+	CurrentValue = (state.antiIdlePro == true), -- reuse existing saved value
+	Flag = "AntiIdle",
+	Callback = function(on)
+		-- store into existing field to avoid changing your state table right now
+		state.antiIdlePro = on and true or false
+	end
+})
+
+--[[
 Header(Tabs.Utility, "Diagnostics")
 
 Tabs.Utility:CreateToggle({
@@ -3160,25 +3319,29 @@ Tabs.Utility:CreateToggle({
 local perfPing = Tabs.Utility:CreateLabel("Ping: -")
 local perfFps  = Tabs.Utility:CreateLabel("FPS: -")
 local perfMem  = Tabs.Utility:CreateLabel("Memory: -")
+]]--
 
 Header(Tabs.Utility, "Recovery")
 
 Tabs.Utility:CreateToggle({
-	Name = "Rejoin on Kick (Best Effort)",
+	Name = "Rejoin on Kick",
 	CurrentValue = state.rejoinOnKick,
 	Flag = "RejoinOnKick",
 	Callback = function(on) state.rejoinOnKick = on and true or false end
 })
 
+--[[
 Header(Tabs.Utility, "Anti Idle")
 
 Tabs.Utility:CreateToggle({
-	Name = "Anti Idle (Pro)",
+	Name = "Anti Idle",
 	CurrentValue = state.antiIdlePro,
-	Flag = "AntiIdlePro",
+	Flag = "AntiIdle",
 	Callback = function(on) state.antiIdlePro = on and true or false end
 })
+]]--
 
+--[[
 Header(Tabs.Utility, "AFK")
 
 local VirtualUser = game:GetService("VirtualUser")
@@ -3197,7 +3360,9 @@ track(LocalPlayer.Idled:Connect(function()
 		VirtualUser:ClickButton2(Vector2.new())
 	end)
 end))
+]]--
 
+--[[
 Header(Tabs.Utility, "Info")
 
 local utilServer = Tabs.Utility:CreateLabel("Server: -")
@@ -3230,6 +3395,7 @@ track(RunService.Heartbeat:Connect(function(dt)
 	local hum = getHumanoid()
 	setRFLabel(utilPlr, ("Player: %s | HP: %d"):format(LocalPlayer.Name, hum and math.floor(hum.Health+0.5) or 0))
 end))
+]]--
 
 Header(Tabs.Utility, "Performance")
 
@@ -3451,7 +3617,7 @@ Tabs.Settings:CreateButton({
 	end
 })
 
-Header(Tabs.Settings, "Player Info")
+--[[Header(Tabs.Settings, "Player Info")
 
 local function listPlayers()
 	local t = {}
@@ -3548,6 +3714,7 @@ track(RunService.Heartbeat:Connect(function(dt)
 		infoL5.Text = "Local: -"
 	end
 end))
+]]--
 
 Header(Tabs.Settings, "UI") -- section
 

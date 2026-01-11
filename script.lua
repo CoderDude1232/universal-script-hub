@@ -265,7 +265,7 @@ end))
 --========================
 
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
-local VERSION = "v1.2"
+local VERSION = "v1.3"
 
 local Window = Rayfield:CreateWindow({
 	Name = "Axiom " .. VERSION,
@@ -463,6 +463,25 @@ Tabs.Credits:CreateParagraph({
 Header(Tabs.Credits, "Changelog")
 
 Tabs.Credits:CreateParagraph({
+	Title = "v1.3",
+	Content =
+	"- Unified Player, Server, and Performance info into a single Info panel\n" ..
+	"- Removed duplicate and legacy features (old anti-idle, duplicate rejoin, split info panels)\n" ..
+	"- Standardised feature naming across all tabs for consistency\n" ..
+	"- Added Bunny Hop, Spider Walk, Hip Height, and Auto Reset on Death\n" ..
+	"- Added advanced teleport utilities (Cursor TP, Ground TP, Spawn TP, Unstuck)\n" ..
+	"- Improved Follow system with Predictive and Circle modes\n" ..
+	"- Expanded Visual controls (No Camera Shake, Night Vision, Remove Effects, No Weather, No Particles)\n" ..
+	"- Refined ESP system with unified Mode selector and proper cleanup\n" ..
+	"- Fixed ESP drawing persistence and ghost artifacts\n" ..
+	"- Improved hitbox handling across respawns\n" ..
+	"- Added FPS, Ping, Memory Usage, and Session Time tracking\n" ..
+	"- Added Anti-Idle (new system only) and Auto Rejoin safety features\n" ..
+	"- Added UI scaling, notification mute, and reset controls\n" ..
+	"- General stability, performance, and reliability improvements"
+})
+
+Tabs.Credits:CreateParagraph({
 	Title = "v1.2",
 	Content =
 	"- HipHeight\n" ..
@@ -480,11 +499,10 @@ Tabs.Credits:CreateParagraph({
 })
 
 Tabs.Credits:CreateParagraph({
-	Title = "v1.1",
+	Title = "v1.0",
 	Content =
 	"- Initial Axiom release\n" ..
-	"- Core universal systems\n" ..
-	"- ESP, movement, teleport foundation"
+	"- Core features\n"
 })
 
 --========================

@@ -293,14 +293,14 @@ end))
 -- Tabs
 --========================
 local Tabs = {
+	Credits  = Window:CreateTab("Credits",  10723415903),
 	Player   = Window:CreateTab("Player",   10747373176),
 	Movement = Window:CreateTab("Movement", 10747382750),
 	Teleport = Window:CreateTab("Teleport", 10734886202),
 	Visual   = Window:CreateTab("Visual",   10723415040),
 	ESP      = Window:CreateTab("ESP",      10723346959),
 	Utility  = Window:CreateTab("Utility",  10747383470),
-	Settings = Window:CreateTab("Settings", 10734950309),
-	Credits  = Window:CreateTab("Credits",       "info"),
+	Settings = Window:CreateTab("Settings", 10734950309)
 }
 
 --========================
@@ -444,6 +444,43 @@ local ui = {
 	SavedPos = nil,
 	WaypointCode = "",
 }
+
+--========================
+-- CREDITS TAB
+--========================
+
+Tabs.Credits:CreateParagraph({
+	Title = "Credits",
+	Content =
+	"- Name: Axiom\n" ..
+	"- UI: Rayfield\n" ..
+	"- Creator: @etho_gg"
+})
+
+Tabs.Credits:CreateParagraph({
+	Title = "Changelog — v1.2",
+	Content =
+	"- HipHeight\n" ..
+	"- Auto reset on death\n" ..
+	"- Spider / wall walk\n" ..
+	"- Teleport to ground\n" ..
+	"- Unstuck teleport\n" ..
+	"- No camera shake\n" ..
+	"- GUI toggle\n" ..
+	"- Restore visuals\n" ..
+	"- Rejoin on kick\n" ..
+	"- Ping / FPS / memory usage\n" ..
+	"- Improved anti-idle\n" ..
+	"- ESP stability fixes"
+})
+
+Tabs.Credits:CreateParagraph({
+	Title = "Changelog — v1.1",
+	Content =
+	"- Initial Axiom release\n" ..
+	"- Core universal systems\n" ..
+	"- ESP, movement, teleport foundation"
+})
 
 --========================
 -- Weapon Equipper
@@ -3514,15 +3551,6 @@ Tabs.Settings:CreateButton({
 		end
 	end
 })
-
---========================
--- SETTINGS TAB
---========================
-
-Header(Tabs.Credits, "Axiom")
-Tabs.Credits:CreateLabel("Script: Axiom Universal")
-Tabs.Credits:CreateLabel("Library: Rayfield")
-Tabs.Credits:CreateLabel("Creator: @etho_gg")
 
 --========================
 -- Initial refresh

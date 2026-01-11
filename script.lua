@@ -977,25 +977,33 @@ Tabs.Movement:CreateSlider({
 	Callback = function(v) state.flySpeed = v end
 })
 
-Header(Tabs.Movement, "Bunny Hop")
+if premium() then
+	Header(Tabs.Movement, "Bunny Hop")
 
-Tabs.Movement:CreateToggle({
-	Name = "Bunny Hop",
-	CurrentValue = state.bunnyHop,
-	Flag = "BunnyHop",
-	Callback = function(on) state.bunnyHop = on and true or false end
-})
+	Tabs.Movement:CreateToggle({
+		Name = "Bunny Hop",
+		CurrentValue = state.bunnyHop,
+		Flag = "BunnyHop",
+		Callback = function(on)
+			state.bunnyHop = on and true or false
+		end
+	})
+end
 
 Header(Tabs.Movement, "Spider")
 
-Tabs.Movement:CreateToggle({
-	Name = "Spider Walk (Wall Walk)",
-	CurrentValue = state.spiderWalk,
-	Flag = "SpiderWalk",
-	Callback = function(on)
-		state.spiderWalk = on and true or false
-	end
-})
+if premium() then
+	Header(Tabs.Movement, "Spider")
+
+	Tabs.Movement:CreateToggle({
+		Name = "Spider (Broken)",
+		CurrentValue = state.spiderWalk,
+		Flag = "SpiderWalk",
+		Callback = function(on)
+			state.spiderWalk = on and true or false
+		end
+	})
+end
 
 track(RunService.Heartbeat:Connect(function()
 	if state.terminated then return end
@@ -1955,18 +1963,36 @@ track(RunService.Heartbeat:Connect(function()
 end))
 
 Tabs.Visual:CreateToggle({ Name = "Remove Lighting Effects", CurrentValue = state.removeEffects, Flag="RemoveEffects", Callback = function(on) state.removeEffects = on; setRemoveEffects(on) end })
-Tabs.Visual:CreateToggle({ Name = "Night Vision", CurrentValue = state.nightVision, Flag="NightVision", Callback = function(on) state.nightVision = on; setNightVision(on) end })
+if premium() then
+	Header(Tabs.Visual, "Night Vision")
+
+	Tabs.Visual:CreateToggle({
+		Name = "Night Vision",
+		CurrentValue = state.nightVision,
+		Flag = "NightVision",
+		Callback = function(on)
+			state.nightVision = on and true or false
+			setNightVision(on)
+		end
+	})
+end
 Tabs.Visual:CreateToggle({ Name = "No Weather (Fog/Atmosphere)", CurrentValue = state.noWeather, Flag="NoWeather", Callback = function(on) state.noWeather = on; setNoWeather(on) end })
 Tabs.Visual:CreateToggle({ Name = "No Particles", CurrentValue = state.noParticles, Flag="NoParticles", Callback = function(on) state.noParticles = on; setNoParticles(on) end })
 
-Header(Tabs.Visual, "Camera & UI")
+if premium() then
+	Header(Tabs.Visual, "Camera")
 
-Tabs.Visual:CreateToggle({
-	Name = "No Camera Shake (Filter)",
-	CurrentValue = state.noCamShake,
-	Flag = "NoCamShake",
-	Callback = function(on) state.noCamShake = on and true or false end
-})
+	Tabs.Visual:CreateToggle({
+		Name = "No Camera Shake",
+		CurrentValue = state.noCamShake,
+		Flag = "NoCamShake",
+		Callback = function(on)
+			state.noCamShake = on and true or false
+		end
+	})
+end
+
+Header(Tabs.Visual, "UI")
 
 Tabs.Visual:CreateToggle({
 	Name = "Hide Game UI (Safe)",
@@ -3151,12 +3177,14 @@ Tabs.Utility:CreateButton({
 	end
 })
 
-Tabs.Utility:CreateButton({
-	Name = "Server Hop (Least Players)",
-	Callback = function()
-		ServerHop:Hop(game.PlaceId, "least")
-	end
-})
+if premium() then
+	Tabs.Utility:CreateButton({
+		Name = "Server Hop (Least Players)",
+		Callback = function()
+			ServerHop:Hop(game.PlaceId, "least")
+		end
+	})
+end
 
 Header(Tabs.Utility, "Info Panel")
 
@@ -3271,14 +3299,28 @@ track(RunService.Heartbeat:Connect(function(dt)
 	if state._infoPanelAcc < (state.infoRefreshRate or 0.5) then return end
 	state._infoPanelAcc = 0
 
-	local ping = getPingMs()
-	local mem = getMemMb()
+	-- FREE (always): server player count + FPS
+	local serverLine = ("Server: %d/%d players"):format(#Players:GetPlayers(), Players.MaxPlayers)
+	local perfLine = ("Performance: FPS %.0f"):format(fps)
 
-	local serverLine = ("Server: %d/%d players\nPlaceId: %d\nJobId: %s")
-		:format(#Players:GetPlayers(), Players.MaxPlayers, game.PlaceId, tostring(game.JobId):sub(1,12) .. "…")
+	-- PREMIUM-ONLY: ping/memory/placeId/jobId/session time
+	if premium() then
+		local ping = getPingMs()
+		local mem = getMemMb()
 
-	local perfLine = ("Performance: FPS %.0f | Ping %s | Mem %s")
-		:format(fps, ping and (tostring(ping).."ms") or "-", mem and (tostring(mem).."MB") or "-")
+		local jobShort = tostring(game.JobId):sub(1,12) .. "…"
+		local elapsed = os.clock() - (state.sessionStart or os.clock())
+		local hh = math.floor(elapsed / 3600)
+		local mm = math.floor((elapsed % 3600) / 60)
+		local ss = math.floor(elapsed % 60)
+		local session = ("%02d:%02d:%02d"):format(hh, mm, ss)
+
+		serverLine = serverLine .. ("\nPlaceId: %d\nJobId: %s\nSession: %s"):format(game.PlaceId, jobShort, session)
+		perfLine = perfLine .. (" | Ping %s | Mem %s"):format(
+			ping and (tostring(ping).."ms") or "-",
+			mem and (tostring(mem).."MB") or "-"
+		)
+	end
 
 	local target = getSelectedPlayer()
 	if not target then
@@ -3294,23 +3336,30 @@ track(RunService.Heartbeat:Connect(function(dt)
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	local lroot = getRootOf(LocalPlayer)
 
-	local team = (target.Team and target.Team.Name) or "None"
-	local hp = (hum and hum.MaxHealth) and ("%d/%d"):format(math.floor(hum.Health+0.5), math.floor(hum.MaxHealth+0.5)) or "-"
+	-- FREE (always): selected name + distance + velocity
 	local dist = (root and lroot) and ("%.0fm"):format((root.Position - lroot.Position).Magnitude) or "-"
+	local vel = (root and root.AssemblyLinearVelocity) and ("%.0f"):format(root.AssemblyLinearVelocity.Magnitude) or "-"
 
-	local playerLine = ("Player: %s%s\nTeam: %s\nHealth: %s\nDistance: %s")
-		:format(target.Name, (target==LocalPlayer) and " (Local)" or "", team, hp, dist)
+	local playerLine = ("Player: %s%s\nDistance: %s\nVelocity: %s studs/s")
+		:format(target.Name, (target==LocalPlayer) and " (Local)" or "", dist, vel)
 
-	local extra = ""
-	if target == LocalPlayer and root then
-		local v = root.AssemblyLinearVelocity
-		extra = ("\n\nLocal:\nPos: %.0f, %.0f, %.0f\nVel: %.0f studs/s")
-			:format(root.Position.X, root.Position.Y, root.Position.Z, v.Magnitude)
+	-- PREMIUM-ONLY: team/health + local position details
+	if premium() then
+		local team = (target.Team and target.Team.Name) or "None"
+		local hp = (hum and hum.MaxHealth) and ("%d/%d"):format(math.floor(hum.Health+0.5), math.floor(hum.MaxHealth+0.5)) or "-"
+
+		playerLine = playerLine .. ("\nTeam: %s\nHealth: %s"):format(team, hp)
+
+		if target == LocalPlayer and root then
+			local v = root.AssemblyLinearVelocity
+			playerLine = playerLine .. ("\n\nLocal:\nPos: %.0f, %.0f, %.0f\nVel: %.0f studs/s")
+				:format(root.Position.X, root.Position.Y, root.Position.Z, v.Magnitude)
+		end
 	end
 
 	infoPanel:Set({
 		Title = "Info",
-		Content = serverLine .. "\n\n" .. perfLine .. "\n\n" .. playerLine .. extra
+		Content = serverLine .. "\n\n" .. perfLine .. "\n\n" .. playerLine
 	})
 end))
 
@@ -3342,14 +3391,18 @@ local perfFps  = Tabs.Utility:CreateLabel("FPS: -")
 local perfMem  = Tabs.Utility:CreateLabel("Memory: -")
 ]]--
 
-Header(Tabs.Utility, "Recovery")
+if premium() then
+	Header(Tabs.Utility, "Recovery")
 
-Tabs.Utility:CreateToggle({
-	Name = "Rejoin on Kick",
-	CurrentValue = state.rejoinOnKick,
-	Flag = "RejoinOnKick",
-	Callback = function(on) state.rejoinOnKick = on and true or false end
-})
+	Tabs.Utility:CreateToggle({
+		Name = "Rejoin on Kick",
+		CurrentValue = state.rejoinOnKick,
+		Flag = "RejoinOnKick",
+		Callback = function(on)
+			state.rejoinOnKick = on and true or false
+		end
+	})
+end
 
 --[[
 Header(Tabs.Utility, "Anti Idle")

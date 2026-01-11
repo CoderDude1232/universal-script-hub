@@ -134,6 +134,10 @@ local function notify(title, message, duration, force)
 	})
 end
 
+local function premium()
+	return AXIOM_PREMIUM == true
+end
+
 local function getRayfieldGui()
 	local cg = game:GetService("CoreGui")
 	for _, v in ipairs(cg:GetChildren()) do
@@ -265,6 +269,7 @@ end))
 --========================
 
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
+local AXIOM_PREMIUM = false
 local VERSION = "v1.3"
 
 local Window = Rayfield:CreateWindow({
@@ -457,7 +462,8 @@ Tabs.Credits:CreateParagraph({
 	"- Name: Axiom\n" ..
 	"- UI: Rayfield\n" ..
 	"- Creator: @etho_gg\n" ..
-	"- Version: " .. VERSION
+	"- Version: " .. VERSION .. "\n"
+	"- Edition: " .. premium() and "Premium" or "Standard"
 })
 
 Header(Tabs.Credits, "Changelog")
@@ -2534,6 +2540,11 @@ local function stopDrawingESP()
 	nukeGlobalDrawings()
 end
 
+-- Safety: never allow drawing ESP in Standard build
+if not premium() then
+	stopDrawingESP()
+end
+
 -- Clear stuck drawings from previous executions immediately
 task.defer(stopDrawingESP)
 
@@ -2563,23 +2574,33 @@ if opt == "Off" or opt == "Highlight" then
 	stopDrawingESP()
 end
 
+local espModeOptions = premium()
+	and {"Off","Highlight","Box","Skeleton","Box+Skeleton"}
+	or  {"Off","Highlight"}
+
 Tabs.ESP:CreateDropdown({
 	Name = "Mode",
-	Options = {"Off","Highlight","Box","Skeleton","Box+Skeleton"},
+	Options = espModeOptions,
 	CurrentOption = {state.espMode},
 	MultipleOptions = false,
 	Flag = "ESPMode",
 	Callback = function(opt)
-	if type(opt) == "table" then opt = opt[1] end
-	opt = tostring(opt or "Highlight")
-	state.espMode = opt
+		if type(opt) == "table" then opt = opt[1] end
+		opt = tostring(opt or "Highlight")
 
-	local drawingModes = { Box=true, Skeleton=true, ["Box+Skeleton"]=true }
-	if drawingModes[opt] then
-		startDrawingESP()
-	else
-		stopDrawingESP()
-	end
+		-- If not premium, force safe mode
+		if not premium() and (opt == "Box" or opt == "Skeleton" or opt == "Box+Skeleton") then
+			opt = "Highlight"
+		end
+
+		state.espMode = opt
+
+		local drawingModes = { Box=true, Skeleton=true, ["Box+Skeleton"]=true }
+		if drawingModes[opt] and premium() then
+			startDrawingESP()
+		else
+			stopDrawingESP()
+		end
 	end
 })
 

@@ -134,10 +134,6 @@ local function notify(title, message, duration, force)
 	})
 end
 
-local function premium()
-	return AXIOM_PREMIUM == true
-end
-
 local function getRayfieldGui()
 	local cg = game:GetService("CoreGui")
 	for _, v in ipairs(cg:GetChildren()) do
@@ -269,7 +265,7 @@ end))
 --========================
 
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
-local AXIOM_PREMIUM = false
+local AXIOM_PREMIUM = (_G.AXIOM_PREMIUM == true)
 local VERSION = "v1.3"
 
 local Window = Rayfield:CreateWindow({
@@ -293,6 +289,10 @@ track(UIS.InputBegan:Connect(function(input, gp)
 	pcall(function() Rayfield:ToggleUI() end)
 	pcall(function() Window:Toggle() end)
 end))
+
+local function premium()
+	return AXIOM_PREMIUM
+end
 
 --========================
 -- Tabs

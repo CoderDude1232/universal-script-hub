@@ -456,7 +456,7 @@ Tabs.Credits:CreateParagraph({
 	Content =
 	"- Name: Axiom\n" ..
 	"- UI: Rayfield\n" ..
-	"- Creator: @etho_gg" ..
+	"- Creator: @etho_gg\n" ..
 	"- Version: " .. VERSION
 })
 

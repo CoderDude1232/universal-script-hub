@@ -267,6 +267,7 @@ end))
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
 local AXIOM_PREMIUM = (_G.AXIOM_PREMIUM == true)
 local VERSION = "v1.3"
+local STATUS = "Undetected"
 
 local Window = Rayfield:CreateWindow({
 	Name = "Axiom " .. VERSION,
@@ -460,10 +461,9 @@ Tabs.Credits:CreateParagraph({
 	Title = "Credits",
 	Content =
 	"- Name: Axiom\n" ..
-	"- UI: Rayfield\n" ..
 	"- Creator: @etho_gg\n" ..
 	"- Version: " .. VERSION .. "\n" ..
-	"- Edition: " .. (premium() and "Premium" or "Standard")
+	"- Status: " .. STATUS
 })
 
 Header(Tabs.Credits, "Changelog")
@@ -480,7 +480,7 @@ Tabs.Credits:CreateParagraph({
 	Content =
 	"- HipHeight\n" ..
 	"- Auto reset on death\n" ..
-	"- Spider / wall walk\n" ..
+	"- Wall walk (broken)\n" ..
 	"- Teleport to ground\n" ..
 	"- Unstuck teleport\n" ..
 	"- No camera shake\n" ..

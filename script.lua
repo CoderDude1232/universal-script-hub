@@ -266,8 +266,8 @@ end))
 
 local MINIMIZE_KEY = Enum.KeyCode.RightShift
 local AXIOM_PREMIUM = (_G.AXIOM_PREMIUM == true)
-local VERSION = "v1.4b"
-local STATUS = "Updating"
+local VERSION = "v1.4"
+local STATUS = "Undetected"
 
 local Window = Rayfield:CreateWindow({
 	Name = "Axiom " .. VERSION,
